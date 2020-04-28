@@ -103,7 +103,7 @@ class ResNet(fluid.dygraph.Layer):
         super(ResNet, self).__init__()
 
         self.layers = layers
-        supported_layers = [50, 101, 152]
+        supported_layers = [34, 50, 101, 152]
         assert layers in supported_layers, \
             "supported layers are {} but input layer is {}".format(supported_layers, layers)
 
@@ -120,7 +120,8 @@ class ResNet(fluid.dygraph.Layer):
             num_channels=3,
             num_filters=64,
             filter_size=7,
-            stride=2,
+            stride=1,
+            #stride=2, test w.o downsample
             act='relu')
         self.pool2d_max = Pool2D(
             pool_size=3,
@@ -159,7 +160,7 @@ class ResNet(fluid.dygraph.Layer):
 
     def forward(self, inputs):
         y = self.conv(inputs)
-        y = self.pool2d_max(y)
+        #y = self.pool2d_max(y)
         for bottleneck_block in self.bottleneck_block_list:
             y = bottleneck_block(y)
         y = self.pool2d_avg(y)

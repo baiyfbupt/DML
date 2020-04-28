@@ -77,3 +77,10 @@ def add_arguments(argname, type, default, help, argparser, **kwargs):
         type=type,
         help=help + ' Default: %(default)s.',
         **kwargs)
+
+def count_parameters_in_MB(all_params):
+    parameters_number = 0
+    for param in all_params:
+        if param.trainable:
+            parameters_number += np.prod(param.shape)
+    return parameters_number / 1e6

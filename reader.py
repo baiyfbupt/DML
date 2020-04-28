@@ -34,61 +34,55 @@ except:
 
 IMAGE_SIZE = 32
 IMAGE_DEPTH = 3
-CIFAR_MEAN = [0.5071, 0.4867, 0.4408]
-CIFAR_STD = [0.2675, 0.2565, 0.2761]
+CIFAR_MEAN = [0.5070751592371323, 0.48654887331495095, 0.4409178433670343]
+CIFAR_STD = [0.2673342858792401, 0.2564384629170883, 0.27615047132568404]
 
 URL_PREFIX = 'https://www.cs.toronto.edu/~kriz/'
 CIFAR100_URL = URL_PREFIX + 'cifar-100-python.tar.gz'
 CIFAR100_MD5 = 'eb9058c3a382ffc7106e4002c42a8d85'
+CIFAR10_URL = URL_PREFIX + 'cifar-10-python.tar.gz'
+CIFAR10_MD5 = 'c58f30108f718f92721af3b95e74349a'
+
 
 paddle.dataset.common.DATA_HOME = "dataset/"
 
 
-def preprocess(sample, is_training, args):
+def preprocess(sample, is_training):
     image_array = sample.reshape(IMAGE_DEPTH, IMAGE_SIZE, IMAGE_SIZE)
     rgb_array = np.transpose(image_array, (1, 2, 0))
     img = Image.fromarray(rgb_array, 'RGB')
 
-    #if is_training:
-    #    # pad, ramdom crop, random_flip_left_right
-    #    img = ImageOps.expand(img, (4, 4, 4, 4), fill=0)
-    #    left_top = np.random.randint(8, size=2)
-    #    img = img.crop((left_top[1], left_top[0], left_top[1] + IMAGE_SIZE,
-    #                    left_top[0] + IMAGE_SIZE))
-    #    if np.random.randint(2):
-    #        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+    if is_training:
+        # pad, ramdom crop, random_flip_left_right, random_rotation
+        img = ImageOps.expand(img, (4, 4, 4, 4), fill=0)
+        left_top = np.random.randint(8, size=2)
+        img = img.crop((left_top[1], left_top[0], left_top[1] + IMAGE_SIZE,
+                        left_top[0] + IMAGE_SIZE))
+        if np.random.randint(2):
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
+        random_angle = np.random.randint(-15, 15)
+        img = img.rotate(random_angle, Image.NEAREST)
     img = np.array(img).astype(np.float32)
 
     img_float = img / 255.0
     img = (img_float - CIFAR_MEAN) / CIFAR_STD
 
-    #if is_training and args.cutout:
-    #    center = np.random.randint(IMAGE_SIZE, size=2)
-    #    offset_width = max(0, center[0] - args.cutout_length // 2)
-    #    offset_height = max(0, center[1] - args.cutout_length // 2)
-    #    target_width = min(center[0] + args.cutout_length // 2, IMAGE_SIZE)
-    #    target_height = min(center[1] + args.cutout_length // 2, IMAGE_SIZE)
-
-    #    for i in range(offset_height, target_height):
-    #        for j in range(offset_width, target_width):
-    #            img[i][j][:] = 0.0
-
     img = np.transpose(img, (2, 0, 1))
     return img
 
 
-def reader_generator(datasets, batch_size, is_training, is_shuffle, args):
-    def read_batch(datasets, args):
+def reader_generator(datasets, batch_size, is_training, is_shuffle):
+    def read_batch(datasets):
         if is_shuffle:
             random.shuffle(datasets)
         for im, label in datasets:
-            im = preprocess(im, is_training, args)
+            im = preprocess(im, is_training)
             yield im, [int(label)]
 
     def reader():
         batch_data = []
         batch_label = []
-        for data in read_batch(datasets, args):
+        for data in read_batch(datasets):
             batch_data.append(data[0])
             batch_label.append(data[1])
             if len(batch_data) == batch_size:
@@ -102,7 +96,7 @@ def reader_generator(datasets, batch_size, is_training, is_shuffle, args):
     return reader
 
 
-def cifar100_reader(file_name, data_name, is_shuffle, args):
+def cifar100_reader(file_name, data_name, is_shuffle):
     with tarfile.open(file_name, mode='r') as f:
         names = [
             each_item.name for each_item in f if data_name in each_item.name
@@ -127,18 +121,10 @@ def cifar100_reader(file_name, data_name, is_shuffle, args):
 
 
 
-def train_valid(batch_size, is_train, is_shuffle, args):
+def train_valid(batch_size, is_train, is_shuffle):
     name = 'train' if is_train else 'test'
     datasets = cifar100_reader(
         paddle.dataset.common.download(CIFAR100_URL, 'cifar', CIFAR100_MD5),
-        name, is_shuffle, args)
-    n = len(datasets)
-    datasets_lists = [datasets[i:i + n] for i in range(0, len(datasets), n)]
-    multi_readers = []
-    for pid in range(len(datasets_lists)):
-        multi_readers.append(
-            reader_generator(datasets_lists[pid], batch_size, is_train,
-                             is_shuffle, args))
-
-    reader = multi_readers[0]
+        name, is_shuffle)
+    reader = reader_generator(datasets, batch_size, is_train, is_shuffle)
     return reader
