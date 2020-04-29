@@ -160,7 +160,6 @@ class ResNet(fluid.dygraph.Layer):
 
     def forward(self, inputs):
         y = self.conv(inputs)
-        #y = self.pool2d_max(y)
         for bottleneck_block in self.bottleneck_block_list:
             y = bottleneck_block(y)
         y = self.pool2d_avg(y)

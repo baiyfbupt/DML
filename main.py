@@ -62,13 +62,13 @@ def main(args):
 
     with fluid.dygraph.guard(place):
         train_loader = fluid.io.DataLoader.from_generator(
-            capacity=2048,
+            capacity=1024,
             use_double_buffer=True,
             iterable=True,
             return_list=True,
             use_multiprocess=True)
         valid_loader = fluid.io.DataLoader.from_generator(
-            capacity=2048,
+            capacity=1024,
             use_double_buffer=True,
             iterable=True,
             return_list=True,
@@ -77,7 +77,7 @@ def main(args):
         valid_loader.set_batch_generator(valid_reader, places=place)
         dataloaders = [train_loader, valid_loader]
 
-        models = [ResNet()]#, ResNet()]
+        models = [MobileNetV1(), ResNet()]
         print(count_parameters_in_MB(models[0].parameters()))
 
         step = int(args.trainset_num / args.batch_size)
@@ -86,10 +86,10 @@ def main(args):
         lr = [args.init_lr * (0.1**i) for i in range(len(bd) + 1)]
 
         lr_a = fluid.dygraph.PiecewiseDecay(bd, lr, 0)
-        #lr_b = fluid.dygraph.PiecewiseDecay(bd, lr, 0)
+        lr_b = fluid.dygraph.PiecewiseDecay(bd, lr, 0)
         opt_a = fluid.optimizer.MomentumOptimizer(lr_a, 0.9, parameter_list=models[0].parameters(), use_nesterov=True, regularization=fluid.regularizer.L2DecayRegularizer(5e-4))
-        #opt_b = fluid.optimizer.MomentumOptimizer(lr_b, 0.9, parameter_list=models[1].parameters(), use_nesterov=True, regularization=fluid.regularizer.L2DecayRegularizer(5e-4))
-        optimizers = [opt_a]#, opt_b]
+        opt_b = fluid.optimizer.MomentumOptimizer(lr_b, 0.9, parameter_list=models[1].parameters(), use_nesterov=True, regularization=fluid.regularizer.L2DecayRegularizer(5e-4))
+        optimizers = [opt_a, opt_b]
         trainer = Trainer(models, optimizers, dataloaders, args.epochs, args.log_freq)
         trainer.train()
 

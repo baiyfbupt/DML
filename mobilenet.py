@@ -134,7 +134,6 @@ class MobileNetV1(fluid.dygraph.Layer):
                 num_filters1=64,
                 num_filters2=128,
                 num_groups=64,
-                # stride=2, test w.o downsample
                 stride=1,
                 scale=scale),
             name="conv2_2")
@@ -223,6 +222,7 @@ class MobileNetV1(fluid.dygraph.Layer):
         self.out = Linear(
             int(1024 * scale),
             class_dim,
+            act='softmax',
             param_attr=ParamAttr(
                 initializer=MSRA(), name=self.full_name() + "fc7_weights"),
             bias_attr=ParamAttr(name=self.full_name() + "fc7_offset"))
@@ -239,7 +239,6 @@ class MobileNetV1(fluid.dygraph.Layer):
         return y
 
     def loss(self, logits, labels):
-        logits = fluid.layers.softmax(logits, use_cudnn=False)
         out = fluid.layers.cross_entropy(logits, labels)
         out = fluid.layers.mean(out)
         return out
