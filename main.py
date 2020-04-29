@@ -22,8 +22,8 @@ import paddle.fluid as fluid
 
 import reader
 from trainer import Trainer
-from resnet import ResNet
-from mobilenet import MobileNetV1
+from models.resnet import ResNet
+from models.mobilenet import MobileNetV1
 from utility import add_arguments, print_arguments, count_parameters_in_MB
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -61,6 +61,13 @@ def main(args):
             is_shuffle=False)
 
     with fluid.dygraph.guard(place):
+        models = [MobileNetV1(), MobileNetV1()]
+        parallel_models = None
+        if args.use_data_parallel:
+            strategy = fluid.dygraph.parallel.prepare_context()
+            parallel_models = [fluid.dygraph.parallel.DataParallel(model, strategy) for model in models]
+            train_reader = fluid.contrib.reader.distributed_batch_reader(train_reader)
+
         train_loader = fluid.io.DataLoader.from_generator(
             capacity=1024,
             use_double_buffer=True,
@@ -77,9 +84,6 @@ def main(args):
         valid_loader.set_batch_generator(valid_reader, places=place)
         dataloaders = [train_loader, valid_loader]
 
-        models = [MobileNetV1(), ResNet()]
-        print(count_parameters_in_MB(models[0].parameters()))
-
         step = int(args.trainset_num / args.batch_size)
         epochs = [60, 120, 180]
         bd = [step * e for e in epochs]
@@ -90,7 +94,7 @@ def main(args):
         opt_a = fluid.optimizer.MomentumOptimizer(lr_a, 0.9, parameter_list=models[0].parameters(), use_nesterov=True, regularization=fluid.regularizer.L2DecayRegularizer(5e-4))
         opt_b = fluid.optimizer.MomentumOptimizer(lr_b, 0.9, parameter_list=models[1].parameters(), use_nesterov=True, regularization=fluid.regularizer.L2DecayRegularizer(5e-4))
         optimizers = [opt_a, opt_b]
-        trainer = Trainer(models, optimizers, dataloaders, args.epochs, args.log_freq)
+        trainer = Trainer(models, parallel_models, optimizers, dataloaders, args.epochs, args.log_freq)
         trainer.train()
 
 

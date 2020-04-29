@@ -26,9 +26,13 @@ from paddleslim.common import AvgrageMeter, get_logger
 logger = get_logger(__name__, level=logging.INFO)
 
 class Trainer(object):
-    def __init__(self, models, optimizers, dataloaders, epochs, log_freq):
+    def __init__(self, models, parallel_models, optimizers, dataloaders, epochs, log_freq):
         self.models = models
         self.model_num = len(self.models)
+        self.use_data_parallel = False
+        self.parallel_models = parallel_models
+        if self.parallel_models is not None:
+            self.use_data_parallel = True
         self.optimizers = optimizers
         assert len(self.optimizers) == self.model_num
         self.train_loader = dataloaders[0]
@@ -64,7 +68,10 @@ class Trainer(object):
         accs = []
 
         for i in range(self.model_num):
-            self.models[i].train()
+            if self.use_data_parallel:
+                self.parallel_models[i].train()
+            else:
+                self.models[i].train()
             losses.append(AvgrageMeter())
             accs.append(AvgrageMeter())
 
@@ -73,8 +80,13 @@ class Trainer(object):
             batch_size = images.shape[0]
 
             logits=[]
-            for model in self.models:
-                logits.append(model(images))
+            if self.use_data_parallel:
+                for model in self.parallel_models:
+                    logits.append(model(images))
+            else:
+                for model in self.models:
+                    logits.append(model(images))
+
 
             log_msg = 'Train Epoch {}, Step {}'.format(epoch, step_indx)
             for i in range(self.model_num):
@@ -94,9 +106,17 @@ class Trainer(object):
                 losses[i].update(loss.numpy(), batch_size)
                 accs[i].update(prec.numpy()*100, batch_size)
 
-                loss.backward()
+                if self.use_data_parallel:
+                    loss = self.parallel_models[i].scale_loss(loss)
+                    loss.backward()
+                    self.parallel_models[i].apply_collective_grads()
+                else:
+                    loss.backward()
                 self.optimizers[i].minimize(loss)
-                self.models[i].clear_gradients()
+                if self.use_data_parallel:
+                    self.parallel_models[i].clear_gradients()
+                else:
+                    self.models[i].clear_gradients()
 
                 log_msg += ', model{}_loss: {:.3f}'.format(i+1, losses[i].avg[0])
 
@@ -110,7 +130,10 @@ class Trainer(object):
         losses = []
         accs = []
         for i in range(self.model_num):
-            self.models[i].eval()
+            if self.use_data_parallel:
+                self.parallel_models[i].eval()
+            else:
+                self.models[i].eval()
             losses.append(AvgrageMeter())
             accs.append(AvgrageMeter())
 
@@ -119,8 +142,12 @@ class Trainer(object):
             batch_size = images.shape[0]
 
             logits=[]
-            for model in self.models:
-                logits.append(model(images))
+            if self.use_data_parallel:
+                for model in self.parallel_models:
+                    logits.append(model(images))
+            else:
+                for model in self.models:
+                    logits.append(model(images))
             for i in range(self.model_num):
                 gt_loss = self.models[i].loss(logits[i], labels)
                 kl_loss = 0
