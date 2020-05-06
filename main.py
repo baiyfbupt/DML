@@ -84,7 +84,8 @@ def main(args):
         valid_loader.set_batch_generator(valid_reader, places=place)
         dataloaders = [train_loader, valid_loader]
 
-        step = int(args.trainset_num / args.batch_size)
+        device_num = fluid.dygraph.parallel.Env().nranks
+        step = int(args.trainset_num / (args.batch_size * device_num))
         epochs = [60, 120, 180]
         bd = [step * e for e in epochs]
         lr = [args.init_lr * (0.1**i) for i in range(len(bd) + 1)]
