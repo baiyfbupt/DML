@@ -96,7 +96,7 @@ class Trainer(object):
                     if i!=j:
                         x = F.log_softmax(logits[i], axis=1)
                         y = fluid.layers.softmax(logits[j], axis=1)
-                        kl_loss = fluid.layers.kldiv_loss(x, y, reduction='batchmean')
+                        kl_loss += fluid.layers.kldiv_loss(x, y, reduction='batchmean')
 
                 loss = gt_loss
                 if (self.model_num > 1):
@@ -155,7 +155,7 @@ class Trainer(object):
                     if i!=j:
                         x = F.log_softmax(logits[i], axis=1)
                         y = fluid.layers.softmax(logits[j], axis=1)
-                        kl_loss = fluid.layers.kldiv_loss(x, y, reduction='batchmean')
+                        kl_loss += fluid.layers.kldiv_loss(x, y, reduction='batchmean')
 
                 loss = gt_loss
                 if (self.model_num > 1):
